@@ -1,4 +1,4 @@
-name: Build and Deploy All Services to AKS
+name: Build and Deploy to AKS
 
 on:
   push:
@@ -6,10 +6,9 @@ on:
       - main
 
 env:
-  ACR_NAME: ${{ secrets.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_NAME }}.azurecr.io
   RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
   AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
-  ACR_LOGIN_SERVER: ${{ secrets.ACR_NAME }}.azurecr.io
 
 jobs:
   build-and-deploy:
@@ -19,7 +18,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
-    - name: Azure login
+    - name: Azure Login
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -31,7 +30,7 @@ jobs:
     - name: Build and push order-service image
       run: |
         docker build -t $ACR_LOGIN_SERVER/order-service:latest ./src/order-service
-        az acr login --name $ACR_NAME
+        az acr login --name ${{ secrets.ACR_NAME }}
         docker push $ACR_LOGIN_SERVER/order-service:latest
 
     - name: Build and push product-service image
@@ -44,17 +43,17 @@ jobs:
         docker build -t $ACR_LOGIN_SERVER/store-front:latest ./src/store-front
         docker push $ACR_LOGIN_SERVER/store-front:latest
 
-    - name: Deploy all services to AKS
+    - name: Replace image placeholders in YAML
       run: |
-        # 替换镜像地址
-        sed -i "s|<your-acr-name>.azurecr.io|$ACR_LOGIN_SERVER|g" k8s/*/*.yaml
+        find k8s/ -type f -name "*.yaml" -exec sed -i "s|<ACR_LOGIN_SERVER>|$ACR_LOGIN_SERVER|g" {} \;
 
-        # 应用所有服务的配置
+    - name: Deploy to AKS
+      run: |
         kubectl apply -f k8s/order-service/
         kubectl apply -f k8s/product-service/
         kubectl apply -f k8s/store-front/
 
-    - name: Verify rollout
+    - name: Verify deployments rollout status
       run: |
         kubectl rollout status deployment/order-service
         kubectl rollout status deployment/product-service
