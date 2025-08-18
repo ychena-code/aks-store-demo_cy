@@ -1,0 +1,48 @@
+name: Build and Deploy Pet Store to AKS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: store-front
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get ACR login server
+        id: acr
+        run: |
+          echo "ACR_LOGIN_SERVER=$(az acr show --name ${{ secrets.ACR_NAME }} --query loginServer -o tsv)" >> $GITHUB_ENV
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:latest ./src/store-front
+          az acr login --name ${{ secrets.ACR_NAME }}
+          docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:latest
+
+      - name: Get AKS Credentials
+        run: az aks get-credentials --resource-group ${{ secrets.RESOURCE_GROUP }} --name ${{ secrets.AKS_CLUSTER_NAME }}
+
+      - name: Replace Image in YAML
+        run: |
+          sed -i "s|image: .*|image: $ACR_LOGIN_SERVER/$IMAGE_NAME:latest|g" k8s/deployment.yaml
+
+      - name: Deploy to AKS
+        run: |
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+
+      - name: Check rollout status
+        run: kubectl rollout status deployment/store-front
