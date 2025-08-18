@@ -1,4 +1,4 @@
-name: Build and Deploy to AKS
+name: Build and Deploy All Services to AKS
 
 on:
   push:
@@ -6,50 +6,56 @@ on:
       - main
 
 env:
-  IMAGE_NAME: store-front
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+  RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+  AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_NAME }}.azurecr.io
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - name: Azure login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Get ACR login server
-        id: acr
-        run: |
-          echo "ACR_LOGIN_SERVER=$(az acr show --name ${{ secrets.ACR_NAME }} --query loginServer -o tsv)" >> $GITHUB_ENV
+    - name: Get AKS credentials
+      run: |
+        az aks get-credentials --resource-group $RESOURCE_GROUP --name $AKS_CLUSTER_NAME --overwrite-existing
 
-      - name: Build Docker image
-        run: |
-          docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:latest ./src/store-front
+    - name: Build and push order-service image
+      run: |
+        docker build -t $ACR_LOGIN_SERVER/order-service:latest ./src/order-service
+        az acr login --name $ACR_NAME
+        docker push $ACR_LOGIN_SERVER/order-service:latest
 
-      - name: Login to ACR
-        run: az acr login --name ${{ secrets.ACR_NAME }}
+    - name: Build and push product-service image
+      run: |
+        docker build -t $ACR_LOGIN_SERVER/product-service:latest ./src/product-service
+        docker push $ACR_LOGIN_SERVER/product-service:latest
 
-      - name: Push Docker image to ACR
-        run: |
-          docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:latest
+    - name: Build and push store-front image
+      run: |
+        docker build -t $ACR_LOGIN_SERVER/store-front:latest ./src/store-front
+        docker push $ACR_LOGIN_SERVER/store-front:latest
 
-      - name: Get AKS credentials
-        run: |
-          az aks get-credentials --resource-group ${{ secrets.RESOURCE_GROUP }} --name ${{ secrets.AKS_CLUSTER_NAME }}
+    - name: Deploy all services to AKS
+      run: |
+        # 替换镜像地址
+        sed -i "s|<your-acr-name>.azurecr.io|$ACR_LOGIN_SERVER|g" k8s/*/*.yaml
 
-      - name: Update deployment image with ACR image
-        run: |
-          sed -i "s|image: .*|image: $ACR_LOGIN_SERVER/$IMAGE_NAME:latest|g" k8s/deployment.yaml
+        # 应用所有服务的配置
+        kubectl apply -f k8s/order-service/
+        kubectl apply -f k8s/product-service/
+        kubectl apply -f k8s/store-front/
 
-      - name: Deploy to AKS
-        run: |
-          kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
-
-      - name: Verify rollout status
-        run: |
-          kubectl rollout status deployment/store-front
+    - name: Verify rollout
+      run: |
+        kubectl rollout status deployment/order-service
+        kubectl rollout status deployment/product-service
+        kubectl rollout status deployment/store-front
