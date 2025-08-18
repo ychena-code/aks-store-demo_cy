@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: order-service
-        image: <your-acr-name>.azurecr.io/order-service:latest
+        image: <ACR_LOGIN_SERVER>/order-service:latest
         ports:
         - containerPort: 80
