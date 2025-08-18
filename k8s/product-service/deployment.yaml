@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: product-service
-        image: <your-acr-name>.azurecr.io/product-service:latest
+        image: <ACR_LOGIN_SERVER>/product-service:latest
         ports:
         - containerPort: 80
