@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: store-front
-        image: placeholder-image  # 会被 GitHub Actions 替换成实际 ACR 镜像地址
+        image: <your-acr-name>.azurecr.io/store-front:latest
         ports:
         - containerPort: 80
