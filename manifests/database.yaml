@@ -1,47 +1,43 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: petstore-db
+  name: petstore-database
   labels:
-    app: petstore-db
+    app: petstore-database
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: petstore-db
+      app: petstore-database
   template:
     metadata:
       labels:
-        app: petstore-db
+        app: petstore-database
     spec:
       containers:
-        - name: database
-          image: postgres:13
-          ports:
-            - containerPort: 5432
-          env:
-            - name: POSTGRES_DB
-              value: petstore
-            - name: POSTGRES_USER
-              value: petuser
-            - name: POSTGRES_PASSWORD
-              value: petpassword
-          volumeMounts:
-            - mountPath: /var/lib/postgresql/data
-              name: pgdata
-      volumes:
-        - name: pgdata
-          emptyDir: {}
+      - name: database
+        image: cyacrtest.azurecr.io/database:latest
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: petstore-db-secret
+              key: postgres-password
+        - name: POSTGRES_DB
+          value: "petstore"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: petstore-db
+  name: petstore-database
 spec:
   type: ClusterIP
-  selector:
-    app: petstore-db
   ports:
-    - protocol: TCP
-      port: 5432
-      targetPort: 5432
+  - port: 5432
+    targetPort: 5432
+  selector:
+    app: petstore-database
