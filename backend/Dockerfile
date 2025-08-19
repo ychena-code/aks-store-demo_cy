@@ -1,13 +1,12 @@
-# 假设后端是用 Python Flask
-FROM python:3.9-slim
+FROM node:16
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY package*.json ./
+RUN npm install
 
 COPY . .
 
-EXPOSE 5000
+EXPOSE 3000
 
-CMD ["python", "app.py"]
+CMD ["node", "src/index.js"]
