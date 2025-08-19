@@ -9,7 +9,7 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
-  steps:
+    steps:
       # 1. Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
@@ -34,11 +34,11 @@ jobs:
          docker build -t cyacrtest.azurecr.io/backend:latest ./backend
          docker push cyacrtest.azurecr.io/backend:latest
 
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-        version: 'latest'
-
+   # 7. Get AKS credentials
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials --resource-group ${{ secrets.AKS_RESOURCE_GROUP }} --name ${{ secrets.AKS_CLUSTER_NAME }}
+      
       - name: Deploy to Kubernetes cluster
         run: |
           kubectl apply -f manifests/
