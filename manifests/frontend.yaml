@@ -1,30 +1,34 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: petstore-frontend
+  labels:
+    app: petstore-frontend
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
-      app: frontend
+      app: petstore-frontend
   template:
     metadata:
       labels:
-        app: frontend
+        app: petstore-frontend
     spec:
       containers:
-      - name: frontend
-        image: cyacrtest.azurecr.io/frontend:latest  # 替换为您的 ACR 地址
-        ports:
-        - containerPort: 80
+        - name: frontend
+          image: cyacrtest/petstore-frontend:latest
+          ports:
+            - containerPort: 80
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend
+  name: petstore-frontend
 spec:
   type: LoadBalancer
-  ports:
-  - port: 80
   selector:
-    app: frontend
+    app: petstore-frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
