@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: petstore-backend
+  labels:
+    app: petstore-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: petstore-backend
+  template:
+    metadata:
+      labels:
+        app: petstore-backend
+    spec:
+      containers:
+        - name: backend
+          image: cyacrtest/petstore-backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://petstore-db:5432/petstore"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: petstore-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: petstore-backend
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
