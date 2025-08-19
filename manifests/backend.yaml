@@ -15,13 +15,10 @@ spec:
         app: petstore-backend
     spec:
       containers:
-        - name: backend
-          image: cyacrtest/petstore-backend:latest
-          ports:
-            - containerPort: 8080
-          env:
-            - name: DATABASE_URL
-              value: "postgresql://petstore-db:5432/petstore"
+      - name: backend
+        image: cyacrtest.azurecr.io/backend:latest
+        ports:
+        - containerPort: 5000
 ---
 apiVersion: v1
 kind: Service
@@ -29,9 +26,8 @@ metadata:
   name: petstore-backend
 spec:
   type: ClusterIP
+  ports:
+  - port: 5000
+    targetPort: 5000
   selector:
     app: petstore-backend
-  ports:
-    - protocol: TCP
-      port: 8080
-      targetPort: 8080
