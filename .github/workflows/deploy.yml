@@ -1,60 +1,55 @@
-name: Build and Deploy to AKS
+name: Deploy to AKS with Managed Identity
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
+  workflow_dispatch:
 
 env:
-  ACR_LOGIN_SERVER: ${{ secrets.ACR_NAME }}.azurecr.io
-  RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
-  AKS_CLUSTER_NAME: ${{ secrets.AKS_CLUSTER_NAME }}
+  ACR_NAME: "cyacrtest"          # 替换为您的 ACR 名称
+  AKS_NAME: "CYAKS"                   # AKS 集群名
+  RESOURCE_GROUP: "rg-ext-k8s"        # AKS 资源组
+  MANAGED_IDENTITY_CLIENT_ID: ${{ secrets.MANAGED_IDENTITY_CLIENT_ID }}  # 托管身份的 Client ID
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # 必需，用于 OIDC 身份验证
+      contents: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
-    - name: Azure Login
+    - name: Log in to Azure
       uses: azure/login@v1
       with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}      # 托管身份的 Client ID
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Log in to ACR
+      run: |
+        az acr login --name ${{ env.ACR_NAME }}
+
+    - name: Build and push images
+      run: |
+        docker build -t ${{ env.ACR_NAME }}.azurecr.io/frontend:latest -f Dockerfile.frontend .
+        docker build -t ${{ env.ACR_NAME }}.azurecr.io/product:latest -f Dockerfile.product .
+        docker build -t ${{ env.ACR_NAME }}.azurecr.io/order:latest -f Dockerfile.order .
+        
+        docker push ${{ env.ACR_NAME }}.azurecr.io/frontend:latest
+        docker push ${{ env.ACR_NAME }}.azurecr.io/product:latest
+        docker push ${{ env.ACR_NAME }}.azurecr.io/order:latest
 
     - name: Get AKS credentials
       run: |
-        az aks get-credentials --resource-group $RESOURCE_GROUP --name $AKS_CLUSTER_NAME --overwrite-existing
-
-    - name: Build and push order-service image
-      run: |
-        docker build -t $ACR_LOGIN_SERVER/order-service:latest ./src/order-service
-        az acr login --name ${{ secrets.ACR_NAME }}
-        docker push $ACR_LOGIN_SERVER/order-service:latest
-
-    - name: Build and push product-service image
-      run: |
-        docker build -t $ACR_LOGIN_SERVER/product-service:latest ./src/product-service
-        docker push $ACR_LOGIN_SERVER/product-service:latest
-
-    - name: Build and push store-front image
-      run: |
-        docker build -t $ACR_LOGIN_SERVER/store-front:latest ./src/store-front
-        docker push $ACR_LOGIN_SERVER/store-front:latest
-
-    - name: Replace image placeholders in YAML
-      run: |
-        find k8s/ -type f -name "*.yaml" -exec sed -i "s|<ACR_LOGIN_SERVER>|$ACR_LOGIN_SERVER|g" {} \;
+        az aks get-credentials \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --name ${{ env.AKS_NAME }} \
+          --overwrite-existing
 
     - name: Deploy to AKS
       run: |
-        kubectl apply -f k8s/order-service/
-        kubectl apply -f k8s/product-service/
-        kubectl apply -f k8s/store-front/
-
-    - name: Verify deployments rollout status
-      run: |
-        kubectl rollout status deployment/order-service
-        kubectl rollout status deployment/product-service
-        kubectl rollout status deployment/store-front
+        kubectl apply -f manifests/
